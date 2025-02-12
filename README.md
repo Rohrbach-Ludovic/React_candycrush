@@ -14,3 +14,4 @@ Algo :
 
 Bugs :
 - alignements de + de 3 pas pris en compte
+- timer bug quand on restart
