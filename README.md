@@ -14,4 +14,6 @@ Algo :
 
 Bugs :
 - alignements de + de 3 pas pris en compte
-- timer bug quand on restart
+- timer bug quand on restart (sortir timer du use effect pour redémarrer le timer du jeu >>>> a check)
+
+
