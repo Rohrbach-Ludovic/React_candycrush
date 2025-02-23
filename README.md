@@ -10,3 +10,8 @@ Algo :
   - delete match
   - cases 'tombent'
   - regénération de cases
+
+
+Bugs :
+- alignements de + de 3 pas pris en compte
+- timer bug quand on restart
