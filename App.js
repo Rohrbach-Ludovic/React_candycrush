@@ -9,6 +9,7 @@ const PROGRESS_DECREMENT_INTERVAL = 3000; // 3 secondes
 const FALL_DELAY = 200; // Délai de chute
 const INACTIVITY_TIMEOUT = 3000; // 3 secondes d'inactivité
 const HINT_DURATION = 2000; // Durée d'affichage du hint
+const INITIAL_ATTEMPTS = 5; // Nombre d'essais initial
 
 const CandyCrushGame = () => {
   const [grid, setGrid] = useState(generateGrid());
@@ -22,6 +23,7 @@ const CandyCrushGame = () => {
   const [lastInteraction, setLastInteraction] = useState(Date.now());
   const [inactivityTimer, setInactivityTimer] = useState(null);
   const [isHintVisible, setIsHintVisible] = useState(true);
+  const [attempts, setAttempts] = useState(INITIAL_ATTEMPTS); // Nouveau state pour les essais
 
   // Génère une grille initiale sans alignements
   function generateGrid() {
@@ -114,16 +116,7 @@ const CandyCrushGame = () => {
     switch (length) {
       case 3: return 50 * level;
       case 4: return 150 * level;
-      default: return 500 * level; // 5 ou plus
-    }
-  };
-
-  // Calcul du bonus de progression basé sur la longueur de l'alignement
-  const calculateProgressBonus = (length) => {
-    switch (length) {
-      case 3: return 5;
-      case 4: return 10;
-      default: return 15; // 5 ou plus
+      default: return 500 * level;
     }
   };
 
@@ -131,12 +124,10 @@ const CandyCrushGame = () => {
   function removeAlignments(grid, alignments) {
     let newGrid = JSON.parse(JSON.stringify(grid));
     let points = 0;
-    let progressBonus = 0;
 
     alignments.forEach(({ cells }) => {
       const length = cells.length;
       points += calculateScore(length);
-      progressBonus += calculateProgressBonus(length);
 
       cells.forEach(({ row, col }) => {
         if (newGrid[row][col] !== null) {
@@ -145,16 +136,27 @@ const CandyCrushGame = () => {
       });
     });
 
-    // Mise à jour du score et de la progression
-    setScore(prevScore => prevScore + points);
-    setProgress(prevProgress => {
-      const newProgress = Math.min(prevProgress + progressBonus, 100);
-      if (newProgress >= 100) {
-        // Passage au niveau suivant
-        setLevel(prevLevel => prevLevel + 1);
-        return INITIAL_PROGRESS;
+    // Mise à jour du score
+    setScore(prevScore => {
+      const newScore = prevScore + points;
+      
+      // Calcul du niveau basé sur le score total
+      const newLevel = Math.floor(newScore / 100) + 1;
+      
+      // Si le niveau a changé, mettre à jour le niveau et la progression
+      if (newLevel !== level) {
+        const progressPercentage = (newScore % 100);
+        setProgress(progressPercentage);
+        setLevel(newLevel);
+      } else {
+        // Sinon, ajouter simplement à la progression actuelle
+        setProgress(prevProgress => {
+          const newProgress = Math.min(prevProgress + (points % 100), 100);
+          return newProgress;
+        });
       }
-      return newProgress;
+      
+      return newScore;
     });
 
     return { newGrid, points };
@@ -208,7 +210,7 @@ const CandyCrushGame = () => {
     }, FALL_DELAY);
   };
 
-  // Vérifie les alignements et met à jour la grille, le score et le timer
+  // Vérifie les alignements et met à jour la grille, le score reset le timer avant hint
   const handleAlignments = (grid) => {
     let currentGrid = JSON.parse(JSON.stringify(grid));
     let totalPoints = 0;
@@ -237,9 +239,9 @@ const CandyCrushGame = () => {
 
   // Gère le clic sur une case
   const handleCellClick = (row, col) => {
-
     if (isAnimating || isGameOver) return;
     resetInactivityTimer();
+    
     if (selectedCell === null) {
       setSelectedCell({ row, col });
     } else if (selectedCell.row === row && selectedCell.col === col) {
@@ -261,7 +263,19 @@ const CandyCrushGame = () => {
           setHintCells(null);
           handleAlignments(newGrid);
         } else {
-          setGrid(grid);
+          // Décrémenter le nombre d'essais pour une mauvaise permutation
+          setAttempts(prevAttempts => {
+            const newAttempts = prevAttempts - 1;
+            if (newAttempts <= 0) {
+              setIsGameOver(true);
+            }
+            return newAttempts;
+          });
+          
+          // Animation de retour à la position initiale
+          setTimeout(() => {
+            setGrid(grid);
+          }, 300);
         }
       }
       setSelectedCell(null);
@@ -302,6 +316,7 @@ const CandyCrushGame = () => {
     return null;
   };
 
+  // Gère le timer d'inactivité
   const resetInactivityTimer = () => {
     setLastInteraction(Date.now());
 
@@ -352,7 +367,7 @@ const CandyCrushGame = () => {
     };
   }, []);
 
-  //Animation du hint
+  // Animation du hint
   useEffect(() => {
     if (hintCells) {
       const interval = setInterval(() => {
@@ -371,6 +386,7 @@ const CandyCrushGame = () => {
     setIsGameOver(false);
     setSelectedCell(null);
     setHintCells(null);
+    setAttempts(INITIAL_ATTEMPTS); // Réinitialiser les essais
   };
 
   return (
@@ -385,6 +401,11 @@ const CandyCrushGame = () => {
           <View style={styles.progressBar}>
             <Text style={styles.scoreText}>{score}</Text>
           </View>
+        </View>
+        
+        {/* Affichage des essais restants */}
+        <View style={styles.attemptsContainer}>
+          <Text style={styles.attemptsText}>Attempts: {attempts}</Text>
         </View>
       </View>
 
@@ -458,12 +479,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#ddd',
     borderRadius: 15,
     overflow: 'hidden',
+    marginBottom: 10,
   },
   scoreText: {
     textAlign: 'center',
     lineHeight: 30,
     color: '#fff',
     fontWeight: 'bold',
+  },
+  attemptsContainer: {
+    height: 30,
+    backgroundColor: '#ddd',
+    borderRadius: 15,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attemptsText: {
+    textAlign: 'center',
+    fontWeight: 'bold',
+    color: '#333',
   },
   gameOver: {
     fontSize: 30,
