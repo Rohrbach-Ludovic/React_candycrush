@@ -11,4 +11,5 @@ Algo :
   - score selon alignement
   - timer decrease selon niveau
   - hint au bout de 3s
+  - essais : 5, game over si plus d'essais
 
