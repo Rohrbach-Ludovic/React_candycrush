@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 
 const GRID_SIZE = 8; // Taille de la grille
-const CANDY_TYPES = 5; // Nombre de types de bonbons
-const CANDY_COLORS = ['red', 'green', 'blue', 'yellow', 'purple']; // Couleurs
-const INITIAL_PROGRESS = 50; // Barre à 50% au début
-const PROGRESS_DECREMENT_INTERVAL = 3000; // 3 secondes
-const FALL_DELAY = 200; // Délai de chute
-const INACTIVITY_TIMEOUT = 3000; // 3 secondes d'inactivité
-const HINT_DURATION = 2000; // Durée d'affichage du hint
-const INITIAL_ATTEMPTS = 5; // Nombre d'essais initial
+const CANDY_TYPES = 8; // Nombre de types de bonbons
+const CANDY_COLORS = [
+  '#FF0000',  // Rouge
+  '#FF8C00',  // Orange
+  '#FFC107',  // Jaune
+  '#008000',  // Vert
+  '#0000FF',  // Bleu
+  '#800080',  // Violet
+  '#FF1493',  // Rose
+  '#A52A2A',  // Marron
+];
+const INITIAL_PROGRESS = 50; 
+const PROGRESS_DECREMENT_INTERVAL = 3000; 
+const FALL_DELAY = 200; 
+const INACTIVITY_TIMEOUT = 3000; 
+const INITIAL_ATTEMPTS = 5;
 
 const CandyCrushGame = () => {
   const [grid, setGrid] = useState(generateGrid());
@@ -23,7 +31,9 @@ const CandyCrushGame = () => {
   const [lastInteraction, setLastInteraction] = useState(Date.now());
   const [inactivityTimer, setInactivityTimer] = useState(null);
   const [isHintVisible, setIsHintVisible] = useState(true);
-  const [attempts, setAttempts] = useState(INITIAL_ATTEMPTS); // Nouveau state pour les essais
+  const [attempts, setAttempts] = useState(INITIAL_ATTEMPTS);
+  const [isPaused, setIsPaused] = useState(false);
+  const progressTimerRef = useRef(null);
 
   // Génère une grille initiale sans alignements
   function generateGrid() {
@@ -44,7 +54,7 @@ const CandyCrushGame = () => {
   // Vérifie les alignements horizontaux et verticaux
   function checkAlignments(grid) {
     const alignments = [];
-    const visited = new Set(); // Pour éviter de compter deux fois les mêmes cases
+    const visited = new Set(); 
 
     // Vérifie les alignements horizontaux
     for (let i = 0; i < GRID_SIZE; i++) {
@@ -99,6 +109,15 @@ const CandyCrushGame = () => {
         }
       }
       // Vérifier la dernière séquence de la colonne
+
+      /*
+
+        REVOIR CAR DEJA UTILISER AU DESSUS
+
+
+
+
+      */
       if (currentStreak.length >= 3) {
         currentStreak.forEach(pos => visited.add(`${pos.row},${pos.col}`));
         alignments.push({
@@ -112,6 +131,10 @@ const CandyCrushGame = () => {
   }
 
   // Calcul du score basé sur la longueur de l'alignement
+
+  /*
+    Verif si length supérieur à 2 avant le switch pour éviter les soucis
+  */
   const calculateScore = (length) => {
     switch (length) {
       case 3: return 50 * level;
@@ -124,41 +147,35 @@ const CandyCrushGame = () => {
   function removeAlignments(grid, alignments) {
     let newGrid = JSON.parse(JSON.stringify(grid));
     let points = 0;
-
+  
     alignments.forEach(({ cells }) => {
       const length = cells.length;
       points += calculateScore(length);
-
+  
       cells.forEach(({ row, col }) => {
         if (newGrid[row][col] !== null) {
           newGrid[row][col] = null;
         }
       });
     });
-
+  
     // Mise à jour du score
     setScore(prevScore => {
       const newScore = prevScore + points;
-      
+  
       // Calcul du niveau basé sur le score total
       const newLevel = Math.floor(newScore / 100) + 1;
-      
-      // Si le niveau a changé, mettre à jour le niveau et la progression
-      if (newLevel !== level) {
-        const progressPercentage = (newScore % 100);
-        setProgress(progressPercentage);
-        setLevel(newLevel);
-      } else {
-        // Sinon, ajouter simplement à la progression actuelle
-        setProgress(prevProgress => {
-          const newProgress = Math.min(prevProgress + (points % 100), 100);
-          return newProgress;
-        });
-      }
-      
+  
+      // Calcul de la progression en fonction du score actuel par rapport au niveau suivant
+      const progressPercentage = (newScore / (newLevel * 100)) * 100;
+  
+      // Mise à jour du niveau et de la progression
+      setLevel(newLevel);
+      setProgress(progressPercentage);
+  
       return newScore;
     });
-
+  
     return { newGrid, points };
   }
 
@@ -336,22 +353,31 @@ const CandyCrushGame = () => {
     setInactivityTimer(timer);
   };
 
+  //
+
   // Timer et décrémentation de la progression
   useEffect(() => {
-    const progressTimer = setInterval(() => {
-      setProgress(prevProgress => {
-        const newProgress = prevProgress - level;
-        if (newProgress <= 0) {
-          setIsGameOver(true);
-          clearInterval(progressTimer);
-          return 0;
-        }
-        return newProgress;
-      });
-    }, PROGRESS_DECREMENT_INTERVAL);
-
-    return () => clearInterval(progressTimer);
-  }, [level]);
+    if (!isPaused && !isGameOver) {
+      progressTimerRef.current = setInterval(() => {
+        setProgress(prevProgress => {
+          const newProgress = prevProgress - level;
+          if (newProgress <= 0) {
+            setIsGameOver(true);
+            clearInterval(progressTimerRef.current);
+            return 0;
+          }
+          return newProgress;
+        });
+      }, PROGRESS_DECREMENT_INTERVAL);
+    }
+  
+    // Nettoyage du timer lors du démontage du composant ou de la pause
+    return () => {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+      }
+    };
+  }, [level, isPaused, isGameOver]); // Déclencher aussi lorsque isPaused ou isGameOver change
 
   // Initialisation du timer d'inactivité
   useEffect(() => {
@@ -386,61 +412,67 @@ const CandyCrushGame = () => {
     setIsGameOver(false);
     setSelectedCell(null);
     setHintCells(null);
-    setAttempts(INITIAL_ATTEMPTS); // Réinitialiser les essais
+    setAttempts(INITIAL_ATTEMPTS);
+    setIsPaused(false);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.statusContainer}>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${progress}%` }]} />
-          <Text style={styles.progressText}>Level {level}</Text>
-        </View>
+  <View style={styles.container}>
+    <View style={styles.statusContainer}>
+      <View style={styles.progressBarContainer}>
+        <View style={[styles.progressBar, { width: `${progress}%` }]} />
+        <Text style={styles.progressText}>{progress.toFixed(2)}%</Text>
+      </View>
 
-        <View style={styles.scoreContainer}>
-          <View style={styles.progressBar}>
-            <Text style={styles.scoreText}>{score}</Text>
-          </View>
-        </View>
-        
-        {/* Affichage des essais restants */}
-        <View style={styles.attemptsContainer}>
-          <Text style={styles.attemptsText}>Attempts: {attempts}</Text>
+      <View style={styles.scoreContainer}>
+        <View style={styles.progressBar}>
+          <Text style={styles.scoreText}>{score}</Text>
         </View>
       </View>
 
-      {isGameOver && <Text style={styles.gameOver}>Game Over!</Text>}
-
-      <View style={styles.grid}>
-        {grid.map((row, i) => (
-          <View key={i} style={styles.row}>
-            {row.map((candy, j) => (
-              <TouchableOpacity
-                key={`${i}-${j}`}
-                style={[
-                  styles.candy,
-                  { backgroundColor: CANDY_COLORS[candy] },
-                  selectedCell && selectedCell.row === i && selectedCell.col === j && styles.selected,
-                  hintCells && (
-                    (hintCells.from.row === i && hintCells.from.col === j) ||
-                    (hintCells.to.row === i && hintCells.to.col === j)
-                  ) && [styles.hint, !isHintVisible && styles.hintFaded]
-                ]}
-                onPress={() => handleCellClick(i, j)}
-                disabled={isAnimating || isGameOver}
-              />
-            ))}
-          </View>
-        ))}
+      <View style={styles.attemptsContainer}>
+        <Text style={styles.attemptsText}>Attempts: {attempts}</Text>
       </View>
-
-      {isGameOver && (
-        <TouchableOpacity style={styles.restartButton} onPress={restartGame}>
-          <Text style={styles.restartText}>Restart</Text>
-        </TouchableOpacity>
-      )}
     </View>
-  );
+
+    {isGameOver && <Text style={styles.gameOver}>Game Over!</Text>}
+
+    <View style={styles.grid}>
+      {grid.map((row, i) => (
+        <View key={i} style={styles.row}>
+          {row.map((candy, j) => (
+            <TouchableOpacity
+              key={`${i}-${j}`}
+              style={[
+                styles.candy,
+                { backgroundColor: CANDY_COLORS[candy] },
+                selectedCell && selectedCell.row === i && selectedCell.col === j && styles.selected,
+                hintCells && (
+                  (hintCells.from.row === i && hintCells.from.col === j) ||
+                  (hintCells.to.row === i && hintCells.to.col === j)
+                ) && [styles.hint, !isHintVisible && styles.hintFaded]
+              ]}
+              onPress={() => handleCellClick(i, j)}
+              disabled={isAnimating || isGameOver || isPaused}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+
+    
+    <View style={styles.buttonContainer}>
+      <TouchableOpacity style={styles.restartButton} onPress={restartGame}>
+        <Text style={styles.restartText}>Restart</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.pauseButton} onPress={() => setIsPaused(!isPaused)}>
+        <Text style={styles.pauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+      </TouchableOpacity>
+    </View>
+
+  </View>
+);
 };
 
 const styles = StyleSheet.create({
@@ -523,13 +555,31 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'black',
   },
-  restartButton: {
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 20,
+    width: "60%", 
+    alignSelf: "center", 
+  },
+  restartButton: {
+    backgroundColor: "green",
     padding: 10,
-    backgroundColor: '#4CAF50',
     borderRadius: 5,
+    marginHorizontal: 10,
+  },
+  pauseButton: {
+    backgroundColor: "#ffc107",
+    padding: 10,
+    borderRadius: 5,
+    marginHorizontal: 10,
   },
   restartText: {
+    color: 'white',
+    fontSize: 18,
+  },
+  pauseText: {
     color: 'white',
     fontSize: 18,
   },
@@ -546,7 +596,9 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     shadowOpacity: 0,
     elevation: 0,
-  }
+  },
+  
+  
 });
 
 export default CandyCrushGame;
