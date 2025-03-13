@@ -398,7 +398,7 @@ const CandyCrushGame = () => {
     if (hintCells) {
       const interval = setInterval(() => {
         setIsHintVisible(prev => !prev);
-      }, 600); // Vitesse de clignotement
+      }, 1000); // Vitesse de clignotement
       return () => clearInterval(interval);
     }
   }, [hintCells]);
@@ -445,12 +445,12 @@ const CandyCrushGame = () => {
               key={`${i}-${j}`}
               style={[
                 styles.candy,
-                { backgroundColor: CANDY_COLORS[candy] },
+                { backgroundColor: CANDY_COLORS[candy], opacity: isPaused ? 0 : 1  },
                 selectedCell && selectedCell.row === i && selectedCell.col === j && styles.selected,
                 hintCells && (
                   (hintCells.from.row === i && hintCells.from.col === j) ||
                   (hintCells.to.row === i && hintCells.to.col === j)
-                ) && [styles.hint, !isHintVisible && styles.hintFaded]
+                ) && [styles.hint, !isHintVisible && styles.hintFaded],               
               ]}
               onPress={() => handleCellClick(i, j)}
               disabled={isAnimating || isGameOver || isPaused}
@@ -583,19 +583,8 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-  hint: {
-    borderWidth: 4,
-    borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 5,
-    elevation: 8,
-  },
   hintFaded: {
-    borderColor: 'transparent',
-    shadowOpacity: 0,
-    elevation: 0,
+    backgroundColor: 'white',
   },
   
   

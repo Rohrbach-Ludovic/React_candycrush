@@ -1,24 +1,14 @@
 # React_candycrush
+
 Projet Candy Crush pour la LP DAO
 
-
-
 Algo :
-  - matches found
-  - delete match
-  - cases 'tombent'
-  - regénération de cases
-  - score selon alignement
-  - timer decrease selon niveau
-  - hint au bout de 3s
-  - essais : 5, game over si plus d'essais
 
-<<<<<<< HEAD
-=======
-
-Bugs :
-- alignements de + de 3 pas pris en compte
-- timer bug quand on restart (sortir timer du use effect pour redémarrer le timer du jeu >>>> a check)
-
-
->>>>>>> 112cd45236cfb11cfebb466a2bc580e05452809f
+- matches found
+- delete match
+- cases 'tombent'
+- regénération de cases
+- score selon alignement
+- timer decrease selon niveau
+- hint au bout de 3s
+- essais : 5, game over si plus d'essais
