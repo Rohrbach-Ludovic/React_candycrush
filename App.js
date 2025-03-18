@@ -1,23 +1,24 @@
+// CandyCrushGame.js
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-
-const GRID_SIZE = 8; // Taille de la grille
-const CANDY_TYPES = 8; // Nombre de types de bonbons
-const CANDY_COLORS = [
-  '#FF0000',  // Rouge
-  '#FF8C00',  // Orange
-  '#FFC107',  // Jaune
-  '#008000',  // Vert
-  '#0000FF',  // Bleu
-  '#800080',  // Violet
-  '#FF1493',  // Rose
-  '#A52A2A',  // Marron
-];
-const INITIAL_PROGRESS = 50;
-const PROGRESS_DECREMENT_INTERVAL = 3000;
-const FALL_DELAY = 200;
-const INACTIVITY_TIMEOUT = 3000;
-const INITIAL_ATTEMPTS = 5;
+import { View, Text, TouchableOpacity } from 'react-native';
+import { styles } from './assets/styles';
+import {
+  GRID_SIZE,
+  CANDY_TYPES,
+  CANDY_COLORS,
+  INITIAL_PROGRESS,
+  PROGRESS_DECREMENT_INTERVAL,
+  FALL_DELAY,
+  INACTIVITY_TIMEOUT,
+  INITIAL_ATTEMPTS,
+  generateGrid,
+  checkAlignments,
+  calculateScore,
+  removeAlignments,
+  dropCandies,
+  fillEmptySpaces,
+  findPossibleMove,
+} from './core/GameLogic';
 
 const CandyCrushGame = () => {
   const [grid, setGrid] = useState(generateGrid());
@@ -34,190 +35,6 @@ const CandyCrushGame = () => {
   const [attempts, setAttempts] = useState(INITIAL_ATTEMPTS);
   const [isPaused, setIsPaused] = useState(false);
   const progressTimerRef = useRef(null);
-
-  // Génère une grille initiale sans alignements
-  function generateGrid() {
-    let newGrid;
-    do {
-      newGrid = [];
-      for (let i = 0; i < GRID_SIZE; i++) {
-        const row = [];
-        for (let j = 0; j < GRID_SIZE; j++) {
-          row.push(Math.floor(Math.random() * CANDY_TYPES));
-        }
-        newGrid.push(row);
-      }
-    } while (checkAlignments(newGrid).length > 0);
-    return newGrid;
-  }
-
-  // Vérifie les alignements horizontaux et verticaux
-  function checkAlignments(grid) {
-    const alignments = [];
-    const visited = new Set();
-
-    const processStreak = (streak, direction) => {
-      if (streak.length >= 3) {
-        streak.forEach(pos => visited.add(`${pos.row},${pos.col}`));
-        alignments.push({
-          cells: [...streak],
-          direction
-        });
-      }
-    };
-
-    const checkLine = (startRow, startCol, rowDelta, colDelta, direction) => {
-      let currentStreak = [];
-      let currentType = null;
-
-      for (let i = 0; i < GRID_SIZE; i++) {
-        const row = startRow + i * rowDelta;
-        const col = startCol + i * colDelta;
-
-        if (grid[row][col] === currentType && grid[row][col] !== null) {
-          currentStreak.push({ row, col });
-        } else {
-          processStreak(currentStreak, direction);
-          currentStreak = [{ row, col }];
-          currentType = grid[row][col];
-        }
-      }
-      processStreak(currentStreak, direction);
-    };
-
-    // Vérifie les alignements horizontaux
-    for (let i = 0; i < GRID_SIZE; i++) {
-      checkLine(i, 0, 0, 1, 'horizontal');
-    }
-
-    // Vérifie les alignements verticaux
-    for (let j = 0; j < GRID_SIZE; j++) {
-      checkLine(0, j, 1, 0, 'vertical');
-    }
-
-    return alignments;
-  }
-
-  // Calcul du score basé sur la longueur de l'alignement
-  const calculateScore = (length) => {
-    if (length > 2)
-      switch (length) {
-        case 3: return 50 * level;
-        case 4: return 150 * level;
-        default: return 500 * level;
-      };
-  };
-
-  // Supprime les alignements et retourne la nouvelle grille et le score gagné
-  function removeAlignments(grid, alignments) {
-    let newGrid = JSON.parse(JSON.stringify(grid));
-    let points = 0;
-
-    alignments.forEach(({ cells }) => {
-      const length = cells.length;
-      points += calculateScore(length);
-
-      cells.forEach(({ row, col }) => {
-        if (newGrid[row][col] !== null) {
-          newGrid[row][col] = null;
-        }
-      });
-    });
-
-    // Mise à jour du score
-    setScore(prevScore => {
-      const newScore = prevScore + points;
-
-      // Calcul du niveau basé sur le score total
-      const newLevel = Math.floor(newScore / 100) + 1;
-
-      // Calcul de la progression en fonction du score actuel par rapport au niveau suivant
-      const progressPercentage = (newScore / (newLevel * 100)) * 100;
-
-      // Mise à jour du niveau et de la progression
-      setLevel(newLevel);
-      setProgress(progressPercentage);
-
-      return newScore;
-    });
-
-    return { newGrid, points };
-  }
-
-  // Fait tomber les bonbons pour remplir les cases vides avec un délai
-  const dropCandies = (grid, callback) => {
-    const newGrid = JSON.parse(JSON.stringify(grid));
-
-    let hasChanges = false;
-
-    for (let j = 0; j < GRID_SIZE; j++) {
-      let emptyRow = GRID_SIZE - 1;
-      for (let i = GRID_SIZE - 1; i >= 0; i--) {
-        if (newGrid[i][j] !== null) {
-          if (emptyRow !== i) {
-            newGrid[emptyRow][j] = newGrid[i][j];
-            newGrid[i][j] = null;
-            hasChanges = true;
-          }
-          emptyRow--;
-        }
-      }
-    }
-
-    if (hasChanges) {
-      setTimeout(() => {
-        setGrid(newGrid);
-        callback(newGrid);
-      }, FALL_DELAY);
-    } else {
-      callback(newGrid);
-    }
-  };
-
-  // Remplit les cases vides avec de nouveaux bonbons
-  const fillEmptySpaces = (grid, callback) => {
-    const newGrid = JSON.parse(JSON.stringify(grid));
-
-    for (let i = 0; i < GRID_SIZE; i++) {
-      for (let j = 0; j < GRID_SIZE; j++) {
-        if (newGrid[i][j] === null) {
-          newGrid[i][j] = Math.floor(Math.random() * CANDY_TYPES);
-        }
-      }
-    }
-
-    setTimeout(() => {
-      setGrid(newGrid);
-      callback(newGrid);
-    }, FALL_DELAY);
-  };
-
-  // Vérifie les alignements et met à jour la grille, le score reset le timer avant hint
-  const handleAlignments = (grid) => {
-    let currentGrid = JSON.parse(JSON.stringify(grid));
-    let totalPoints = 0;
-
-    const processAlignments = () => {
-      const alignments = checkAlignments(currentGrid);
-      if (alignments.length === 0) {
-        setIsAnimating(false);
-        return;
-      }
-
-      const { newGrid, points } = removeAlignments(currentGrid, alignments);
-      totalPoints += points;
-
-      dropCandies(newGrid, (droppedGrid) => {
-        fillEmptySpaces(droppedGrid, (filledGrid) => {
-          currentGrid = filledGrid;
-          processAlignments();
-        });
-      });
-    };
-
-    setIsAnimating(true);
-    processAlignments();
-  };
 
   // Gère le clic sur une case
   const handleCellClick = (row, col) => {
@@ -245,7 +62,6 @@ const CandyCrushGame = () => {
           setHintCells(null);
           handleAlignments(newGrid);
         } else {
-          // Décrémenter le nombre d'essais pour une mauvaise permutation
           setAttempts(prevAttempts => {
             const newAttempts = prevAttempts - 1;
             if (newAttempts <= 0) {
@@ -254,7 +70,6 @@ const CandyCrushGame = () => {
             return newAttempts;
           });
 
-          // Animation de retour à la position initiale
           setTimeout(() => {
             setGrid(grid);
           }, 300);
@@ -264,38 +79,31 @@ const CandyCrushGame = () => {
     }
   };
 
-  // Fonction pour trouver un coup possible
-  const findPossibleMove = () => {
-    // Test horizontal
-    for (let i = 0; i < GRID_SIZE; i++) {
-      for (let j = 0; j < GRID_SIZE - 1; j++) {
-        const testGrid = JSON.parse(JSON.stringify(grid));
-        [testGrid[i][j], testGrid[i][j + 1]] = [testGrid[i][j + 1], testGrid[i][j]];
+  // Vérifie les alignements et met à jour la grille, le score reset le timer avant hint
+  const handleAlignments = (grid) => {
+    let currentGrid = JSON.parse(JSON.stringify(grid));
+    let totalPoints = 0;
 
-        if (checkAlignments(testGrid).length > 0) {
-          return {
-            from: { row: i, col: j },
-            to: { row: i, col: j + 1 }
-          };
-        }
+    const processAlignments = () => {
+      const alignments = checkAlignments(currentGrid);
+      if (alignments.length === 0) {
+        setIsAnimating(false);
+        return;
       }
-    }
 
-    // Test vertical
-    for (let i = 0; i < GRID_SIZE - 1; i++) {
-      for (let j = 0; j < GRID_SIZE; j++) {
-        const testGrid = JSON.parse(JSON.stringify(grid));
-        [testGrid[i][j], testGrid[i + 1][j]] = [testGrid[i + 1][j], testGrid[i][j]];
+      const { newGrid, points } = removeAlignments(currentGrid, alignments, setScore, setLevel, setProgress);
+      totalPoints += points;
 
-        if (checkAlignments(testGrid).length > 0) {
-          return {
-            from: { row: i, col: j },
-            to: { row: i + 1, col: j }
-          };
-        }
-      }
-    }
-    return null;
+      dropCandies(newGrid, (droppedGrid) => {
+        fillEmptySpaces(droppedGrid, (filledGrid) => {
+          currentGrid = filledGrid;
+          processAlignments();
+        });
+      });
+    };
+
+    setIsAnimating(true);
+    processAlignments();
   };
 
   // Gère le timer d'inactivité
@@ -308,7 +116,7 @@ const CandyCrushGame = () => {
 
     const timer = setTimeout(() => {
       if (!isGameOver && !isAnimating && !hintCells) {
-        const move = findPossibleMove();
+        const move = findPossibleMove(grid);
         if (move) {
           setHintCells(move);
         }
@@ -320,13 +128,11 @@ const CandyCrushGame = () => {
 
   // Timer et décrémentation de la progression
   useEffect(() => {
-    // Nettoyer le timer existant avant d'en créer un nouveau
     if (progressTimerRef.current) {
       clearInterval(progressTimerRef.current);
       progressTimerRef.current = null;
     }
 
-    // Créer un nouveau timer uniquement si le jeu n'est pas en pause ou terminé
     if (!isPaused && !isGameOver) {
       progressTimerRef.current = setInterval(() => {
         setProgress((prevProgress) => {
@@ -336,19 +142,18 @@ const CandyCrushGame = () => {
             setIsGameOver(true);
             return 0;
           }
-          return prevProgress - level; // Décrémentation basée sur le niveau
+          return prevProgress - level;
         });
       }, PROGRESS_DECREMENT_INTERVAL);
     }
 
-    // Nettoyer le timer lors du démontage du composant ou des changements d'état
     return () => {
       if (progressTimerRef.current) {
         clearInterval(progressTimerRef.current);
         progressTimerRef.current = null;
       }
     };
-  }, [isPaused, isGameOver, level]); // Dépendances mises à jour
+  }, [isPaused, isGameOver, level]);
 
   // Initialisation du timer d'inactivité
   useEffect(() => {
@@ -369,20 +174,18 @@ const CandyCrushGame = () => {
     if (hintCells) {
       const interval = setInterval(() => {
         setIsHintVisible(prev => !prev);
-      }, 1000); // Vitesse de clignotement
+      }, 1000);
       return () => clearInterval(interval);
     }
   }, [hintCells]);
 
   // Redémarrage du jeu
   const restartGame = () => {
-    // Nettoyer le timer existant
     if (progressTimerRef.current) {
       clearInterval(progressTimerRef.current);
       progressTimerRef.current = null;
     }
 
-    // Réinitialiser l'état du jeu
     setGrid(generateGrid());
     setScore(0);
     setProgress(INITIAL_PROGRESS);
@@ -446,7 +249,7 @@ const CandyCrushGame = () => {
         <TouchableOpacity
           style={styles.pauseButton}
           onPress={() => {
-            setIsPaused((prev) => !prev); // Basculer l'état de pause
+            setIsPaused((prev) => !prev);
           }}
         >
           <Text style={styles.pauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
@@ -455,118 +258,5 @@ const CandyCrushGame = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-  },
-  statusContainer: {
-    width: '90%',
-    marginBottom: 20,
-  },
-  progressBarContainer: {
-    height: 30,
-    backgroundColor: '#ddd',
-    borderRadius: 15,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 15,
-  },
-  progressText: {
-    position: 'absolute',
-    width: '100%',
-    textAlign: 'center',
-    lineHeight: 30,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  scoreContainer: {
-    height: 30,
-    backgroundColor: '#ddd',
-    borderRadius: 15,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  scoreText: {
-    textAlign: 'center',
-    lineHeight: 30,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  attemptsContainer: {
-    height: 30,
-    backgroundColor: '#ddd',
-    borderRadius: 15,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attemptsText: {
-    textAlign: 'center',
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  gameOver: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: 'red',
-    marginBottom: 20,
-  },
-  grid: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  candy: {
-    width: Dimensions.get('window').width / GRID_SIZE - 10,
-    height: Dimensions.get('window').width / GRID_SIZE - 10,
-    margin: 2,
-    borderRadius: 8,
-  },
-  selected: {
-    borderWidth: 3,
-    borderColor: 'black',
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 20,
-    width: "60%",
-    alignSelf: "center",
-  },
-  restartButton: {
-    backgroundColor: "green",
-    padding: 10,
-    borderRadius: 5,
-    marginHorizontal: 10,
-  },
-  pauseButton: {
-    backgroundColor: "#ffc107",
-    padding: 10,
-    borderRadius: 5,
-    marginHorizontal: 10,
-  },
-  restartText: {
-    color: 'white',
-    fontSize: 18,
-  },
-  pauseText: {
-    color: 'white',
-    fontSize: 18,
-  },
-  hintFaded: {
-    backgroundColor: 'white',
-  },
-});
 
 export default CandyCrushGame;
